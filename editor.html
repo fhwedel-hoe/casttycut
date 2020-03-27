@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>asciinema Editor</title>
+		<link rel="stylesheet" href="min.css" />
+		<script src="min.js"></script>
+    <script>
+function init() {
+  let xmlns = "http://www.w3.org/2000/svg";
+  let dom_timeline = document.getElementById('timeline');
+  let dom_terminal = document.getElementById('terminal');
+  let dom_frame_index = document.getElementById('event_index');
+  var terminal;
+  var events;
+  
+  function step_to(event_index) {
+    dom_frame_index.value = event_index;
+    terminal.write(events.stdout[event_index][1]);
+  }
+
+  // "\u001b[H" move to home
+  // "\u001b]0" could be a reset
+  function seek_to(event_index) {
+    let current_index = +dom_frame_index.value;
+    let first_independent_index = event_index;
+    while (first_independent_index > 0 
+      && ! RegExp('\\u001b\\]0|\\u001b\\[H').test(events.stdout[first_independent_index][1])
+    ) {
+      first_independent_index -= 1;
+    }
+    for (let i = first_independent_index; i <= event_index; i++) {
+      step_to(i);
+    }
+  }
+
+  function jump_to(event_index) {
+    terminal.reset();
+    terminal.clear();
+    seek_to(event_index);
+  }
+  
+  document.getElementById('event_next').addEventListener("click", e => {
+    step_to(+dom_frame_index.value+1);
+  }, false);
+
+  function add_marker(time_seconds, event_index) {
+    let path = document.createElementNS(xmlns, "path");
+    path.setAttributeNS(null, 'd', `M ${time_seconds} 0 V 1`);
+    path.addEventListener("click", e => jump_to(event_index), false);
+    dom_timeline.appendChild(path);
+  }
+
+  function initialize_ui() {
+    //dom_terminal.style.width = `${events.width}ex`;
+    //dom_terminal.style.height = `${events.height*2}ex`;
+    
+		terminal = new Terminal({
+			rows: events.height,
+			cols: events.width
+		});
+		terminal.open(dom_terminal);
+    
+    dom_timeline.setAttributeNS(null, 'viewBox', `0 0 ${events.duration} 1`);
+    let time_absolute = 0;
+    events.stdout.forEach((e, i) => {
+      time_delta = e[0];
+      time_absolute += time_delta;
+      add_marker(time_absolute, i)
+    });
+    
+    jump_to(0);
+  }
+  
+  fetch('events.json').then((response) => {
+    return response.json();
+  }).then((data) => {
+    events = data;
+    initialize_ui();
+  });
+}
+    </script>
+    <style>
+#timeline {
+  border: 1px solid black;
+  width: 100%;
+  height: 2em;
+}
+#timeline path {
+  stroke: #000;
+}
+#timeline path:hover {
+  stroke: red;
+}
+#terminal {
+  /*margin: 0 auto;
+  border: 1px solid black;*/
+}
+    </style>
+  </head>
+  <body onload="init();">
+    <div id="terminal"></div>
+    <div>&nbsp;</div>
+    <svg id="timeline" preserveAspectRatio="none"></svg>
+    <div id="controls"><input type="number" id="event_index" min="0" max="0" value="0"><button id="event_next">→</button></div>
+  </body>
+</html>
