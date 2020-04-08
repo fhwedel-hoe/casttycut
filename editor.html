@@ -13,6 +13,7 @@ function init() {
   let dom_terminal = document.getElementById('terminal');
   let dom_frame_index = document.getElementById('event_index');
   let dom_audio = document.getElementById('audio');
+  var dom_current_indicator;
   var terminal;
   var events;
   
@@ -65,17 +66,29 @@ function init() {
 
   document.getElementById('event_next').addEventListener("click", e => {
     step_to(dom_frame_index.valueAsNumber+1);
+    dom_audio.currentTime = events.stdout[event_index].time_absolute;
   }, false);
 
   dom_frame_index.addEventListener('change', e => {
     jump_to(dom_frame_index.valueAsNumber);
+    dom_audio.currentTime = events.stdout[event_index].time_absolute;
   }, false);
   
-  function add_marker(time_seconds, event_index) {
+  function add_indicator(time_seconds) {
     let path = document.createElementNS(xmlns, 'path');
     path.setAttributeNS(null, 'd', `M ${time_seconds} 0 V 1`);
-    path.addEventListener('click', e => jump_to(event_index), false);
     dom_timeline.appendChild(path);
+    return path;
+  }
+  
+  function add_marker(time_seconds, event_index) {
+    let marker = add_indicator(time_seconds);
+    marker.addEventListener('click', e => {
+      if (dom_audio.paused) {
+        jump_to(event_index);
+      }
+      dom_audio.currentTime = events.stdout[event_index].time_absolute;
+    }, false);
   }
 
   function initialize_ui() {
@@ -94,6 +107,9 @@ function init() {
     });
     
     dom_frame_index.max = events.stdout.length - 1;
+    
+    dom_current_indicator = add_indicator(0);
+    dom_current_indicator.style.stroke = "silver";
     
     jump_to(0);
   }
@@ -119,14 +135,13 @@ function init() {
     initialize_ui();
   });
   
-  dom_audio.addEventListener('timeupdate', (event) => {
+  dom_audio.addEventListener('timeupdate', e => {
+    dom_current_indicator.setAttributeNS(null, 'd', `M ${dom_audio.currentTime} 0 V 1`);
     if (events.stdout[dom_frame_index.valueAsNumber].time_absolute > dom_audio.currentTime) {
-      //console.log("jump");
       let index = events.stdout.findIndex(e => e.time_absolute < dom_audio.currentTime);
       jump_to(index);
     }
     while (events.stdout[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
-      //console.log("step");
       step_to(dom_frame_index.valueAsNumber+1);
     }
   });
