@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>asciinema Editor</title>
-		<link rel="stylesheet" href="css/min.css" />
-		<script src="js/min.js"></script>
+    <link rel="stylesheet" href="css/min.css" />
+    <script src="js/min.js"></script>
     <script>
 function init() {
   let xmlns = "http://www.w3.org/2000/svg";
@@ -105,14 +105,14 @@ function init() {
   }
 
   function initialize_ui() {
-    dom_terminal.style.width = `${events.width+7}ex`;
+    dom_terminal.style.width = `${events.width+7}ex`; // TODO: detect width properly
     //dom_terminal.style.height = `${events.height*2.13}ex`;
     
-		terminal = new Terminal({
-			rows: events.height,
-			cols: events.width
-		});
-		terminal.open(dom_terminal);
+    terminal = new Terminal({
+      rows: events.height,
+      cols: events.width
+    });
+    terminal.open(dom_terminal);
     
     dom_timeline.setAttributeNS(null, 'viewBox', `0 0 ${events.duration} 1`);
     events.stdout.forEach((e, i) => {
