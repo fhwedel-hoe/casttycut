@@ -79,8 +79,8 @@ function init() {
   }
 
   function initialize_ui() {
-    //dom_terminal.style.width = `${events.width}ex`;
-    //dom_terminal.style.height = `${events.height*2}ex`;
+    dom_terminal.style.width = `${events.width+7}ex`;
+    //dom_terminal.style.height = `${events.height*2.13}ex`;
     
 		terminal = new Terminal({
 			rows: events.height,
@@ -137,8 +137,11 @@ function init() {
   stroke: red;
 }
 #terminal {
-  /*margin: 0 auto;
-  border: 1px solid black;*/
+  margin: 0 auto;
+  border: 1px solid red;
+}
+.xterm-viewport {
+  overflow: hidden;
 }
     </style>
   </head>
