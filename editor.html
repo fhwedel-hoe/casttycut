@@ -15,9 +15,28 @@ function init() {
   var terminal;
   var events;
   
+  function collapse_events(stdout) {
+    let out = [];
+    let i = 0;
+    out.push(stdout[i]);
+    i++;
+    while (stdout.length > i) {
+      if (stdout[i].time_delta == 0) {
+        out[out.length-1].bytes += stdout[i].bytes;
+      } else {
+        out.push(stdout[i]);
+      }
+      i++;
+    }
+    if (stdout.length >= out.length) {
+      console.log(`Compressed ${stdout.length} events into ${out.length}.`);
+    }
+    return out;
+  }
+  
   function step_to(event_index) {
     dom_frame_index.value = event_index;
-    terminal.write(events.stdout[event_index][1]);
+    terminal.write(events.stdout[event_index].bytes);
   }
 
   // "\u001b[H" move to home
@@ -26,7 +45,7 @@ function init() {
     let current_index = +dom_frame_index.value;
     let first_independent_index = event_index;
     while (first_independent_index > 0 
-      && ! RegExp('\\u001b\\]0|\\u001b\\[H').test(events.stdout[first_independent_index][1])
+      && ! RegExp('\\u001b\\]0|\\u001b\\[H').test(events.stdout[first_independent_index].bytes)
     ) {
       first_independent_index -= 1;
     }
@@ -63,20 +82,31 @@ function init() {
 		terminal.open(dom_terminal);
     
     dom_timeline.setAttributeNS(null, 'viewBox', `0 0 ${events.duration} 1`);
-    let time_absolute = 0;
     events.stdout.forEach((e, i) => {
-      time_delta = e[0];
-      time_absolute += time_delta;
-      add_marker(time_absolute, i)
+      add_marker(e.time_absolute, i)
     });
     
     jump_to(0);
+  }
+  
+  function raise_stdout(dumb_stdout) {
+    high_stdout = dumb_stdout.map(e => { return {
+      time_delta : e[0],
+      bytes : e[1]
+    }});
+    let time_absolute = 0;
+    high_stdout.forEach(e => {
+      time_absolute += e.time_delta;
+      e.time_absolute = time_absolute;
+    });
+    return high_stdout;
   }
   
   fetch('events.json').then((response) => {
     return response.json();
   }).then((data) => {
     events = data;
+    events.stdout = collapse_events(raise_stdout(events.stdout));
     initialize_ui();
   });
 }
