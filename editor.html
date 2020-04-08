@@ -120,7 +120,15 @@ function init() {
   });
   
   dom_audio.addEventListener('timeupdate', (event) => {
-    
+    if (events.stdout[dom_frame_index.valueAsNumber].time_absolute > dom_audio.currentTime) {
+      //console.log("jump");
+      let index = events.stdout.findIndex(e => e.time_absolute < dom_audio.currentTime);
+      jump_to(index);
+    }
+    while (events.stdout[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
+      //console.log("step");
+      step_to(dom_frame_index.valueAsNumber+1);
+    }
   });
 }
     </script>
@@ -143,6 +151,10 @@ function init() {
 .xterm-viewport {
   overflow: hidden;
 }
+#audio {
+  display: block;
+  width: 100%;
+}
     </style>
   </head>
   <body onload="init();">
@@ -150,6 +162,6 @@ function init() {
     <div>&nbsp;</div>
     <svg id="timeline" preserveAspectRatio="none"></svg>
     <div id="controls"><input type="number" id="event_index" min="0" value="0"><button id="event_next">→</button></div>
-    <audio id="audio"></audio>
+    <audio id="audio" src="audio.mp3" controls="controls"></audio>
   </body>
 </html>
