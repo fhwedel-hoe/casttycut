@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>asciinema Editor</title>
-		<link rel="stylesheet" href="min.css" />
-		<script src="min.js"></script>
+		<link rel="stylesheet" href="css/min.css" />
+		<script src="js/min.js"></script>
     <script>
 function init() {
   let xmlns = "http://www.w3.org/2000/svg";
@@ -127,14 +127,6 @@ function init() {
     return high_stdout;
   }
   
-  fetch('events.json').then((response) => {
-    return response.json();
-  }).then((data) => {
-    events = data;
-    events.stdout = collapse_events(raise_stdout(events.stdout));
-    initialize_ui();
-  });
-  
   dom_audio.addEventListener('timeupdate', e => {
     dom_current_indicator.setAttributeNS(null, 'd', `M ${dom_audio.currentTime} 0 V 1`);
     if (events.stdout[dom_frame_index.valueAsNumber].time_absolute > dom_audio.currentTime) {
@@ -144,6 +136,22 @@ function init() {
     while (events.stdout[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
       step_to(dom_frame_index.valueAsNumber+1);
     }
+  });
+  
+  let title = window.location.hash.substring(1);
+  if (! title) {
+    window.location.replace("index.html");
+  }
+  document.title = title;
+  let prefix = "casts/"+title;
+  
+  dom_audio.src = prefix+'/audio.mp3'
+  fetch(prefix+'/events.json').then((response) => {
+    return response.json();
+  }).then((data) => {
+    events = data;
+    events.stdout = collapse_events(raise_stdout(events.stdout));
+    initialize_ui();
   });
 }
     </script>
@@ -177,6 +185,6 @@ function init() {
     <div>&nbsp;</div>
     <svg id="timeline" preserveAspectRatio="none"></svg>
     <div id="controls"><input type="number" id="event_index" min="0" value="0"><button id="event_next">→</button></div>
-    <audio id="audio" src="audio.mp3" controls="controls"></audio>
+    <audio id="audio" controls="controls"></audio>
   </body>
 </html>
