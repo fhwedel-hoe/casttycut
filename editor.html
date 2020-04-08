@@ -36,6 +36,16 @@ function init() {
     return out;
   }
   
+  function stretch_events(stdout, duration) {
+    let events_duration = stdout[stdout.length-1].time_absolute;
+    let total_padding = duration-events_duration;
+    let event_padding = total_padding/stdout.length;
+    stdout.forEach((e, i) => {
+      e.time_absolute += event_padding*(i+1);
+    });
+    return stdout;
+  }
+  
   function step_to(event_index) {
     dom_frame_index.value = event_index;
     terminal.write(events.stdout[event_index].bytes);
@@ -57,6 +67,9 @@ function init() {
     ) {
       first_independent_index -= 1;
     }
+    if (first_independent_index < 0) {
+      first_independent_index = 0;
+    }
     terminal.reset();
     terminal.clear();
     for (let i = first_independent_index; i <= event_index; i++) {
@@ -66,12 +79,12 @@ function init() {
 
   document.getElementById('event_next').addEventListener("click", e => {
     step_to(dom_frame_index.valueAsNumber+1);
-    dom_audio.currentTime = events.stdout[event_index].time_absolute;
+    dom_audio.currentTime = events.stdout[dom_frame_index.valueAsNumber].time_absolute;
   }, false);
 
   dom_frame_index.addEventListener('change', e => {
     jump_to(dom_frame_index.valueAsNumber);
-    dom_audio.currentTime = events.stdout[event_index].time_absolute;
+    dom_audio.currentTime = events.stdout[dom_frame_index.valueAsNumber].time_absolute;
   }, false);
   
   function add_indicator(time_seconds) {
@@ -151,6 +164,7 @@ function init() {
   }).then((data) => {
     events = data;
     events.stdout = collapse_events(raise_stdout(events.stdout));
+    events.stdout = stretch_events(events.stdout, dom_audio.duration);
     initialize_ui();
   });
 }
@@ -169,7 +183,7 @@ function init() {
 }
 #terminal {
   margin: 0 auto;
-  border: 1px solid red;
+  /*border: 1px solid red;*/
 }
 .xterm-viewport {
   overflow: hidden;
@@ -178,13 +192,17 @@ function init() {
   display: block;
   width: 100%;
 }
+#event_index {
+  width: 8ex;
+}
     </style>
   </head>
   <body onload="init();">
     <div id="terminal"></div>
     <div>&nbsp;</div>
     <svg id="timeline" preserveAspectRatio="none"></svg>
-    <div id="controls"><input type="number" id="event_index" min="0" value="0"><button id="event_next">→</button></div>
+    <div id="controls"><label>Current event: <input type="number" id="event_index" min="0" value="0"></label> <button id="event_next">→</button></div>
     <audio id="audio" controls="controls"></audio>
+    <div style="text-align: center;">Bitte auf den ▶ Button drücken.</div>
   </body>
 </html>
