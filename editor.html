@@ -12,6 +12,7 @@ function init() {
   let dom_timeline = document.getElementById('timeline');
   let dom_terminal = document.getElementById('terminal');
   let dom_frame_index = document.getElementById('event_index');
+  let dom_audio = document.getElementById('audio');
   var terminal;
   var events;
   
@@ -39,35 +40,41 @@ function init() {
     terminal.write(events.stdout[event_index].bytes);
   }
 
+  /*
+  * Jumps to the specified index:
+  * From current index, searches events backwards for an independent event,
+  * resets the terminal, jumps to that event steps forwards until the specified index is reached
+  * possibly plays the whole recording again
+  */
   // "\u001b[H" move to home
   // "\u001b]0" could be a reset
-  function seek_to(event_index) {
-    let current_index = +dom_frame_index.value;
+  function jump_to(event_index) {
+    let current_index = dom_frame_index.valueAsNumber;
     let first_independent_index = event_index;
     while (first_independent_index > 0 
       && ! RegExp('\\u001b\\]0|\\u001b\\[H').test(events.stdout[first_independent_index].bytes)
     ) {
       first_independent_index -= 1;
     }
+    terminal.reset();
+    terminal.clear();
     for (let i = first_independent_index; i <= event_index; i++) {
       step_to(i);
     }
   }
 
-  function jump_to(event_index) {
-    terminal.reset();
-    terminal.clear();
-    seek_to(event_index);
-  }
-  
   document.getElementById('event_next').addEventListener("click", e => {
-    step_to(+dom_frame_index.value+1);
+    step_to(dom_frame_index.valueAsNumber+1);
   }, false);
 
+  dom_frame_index.addEventListener('change', e => {
+    jump_to(dom_frame_index.valueAsNumber);
+  }, false);
+  
   function add_marker(time_seconds, event_index) {
-    let path = document.createElementNS(xmlns, "path");
+    let path = document.createElementNS(xmlns, 'path');
     path.setAttributeNS(null, 'd', `M ${time_seconds} 0 V 1`);
-    path.addEventListener("click", e => jump_to(event_index), false);
+    path.addEventListener('click', e => jump_to(event_index), false);
     dom_timeline.appendChild(path);
   }
 
@@ -85,6 +92,8 @@ function init() {
     events.stdout.forEach((e, i) => {
       add_marker(e.time_absolute, i)
     });
+    
+    dom_frame_index.max = events.stdout.length - 1;
     
     jump_to(0);
   }
@@ -108,6 +117,10 @@ function init() {
     events = data;
     events.stdout = collapse_events(raise_stdout(events.stdout));
     initialize_ui();
+  });
+  
+  dom_audio.addEventListener('timeupdate', (event) => {
+    
   });
 }
     </script>
@@ -133,6 +146,7 @@ function init() {
     <div id="terminal"></div>
     <div>&nbsp;</div>
     <svg id="timeline" preserveAspectRatio="none"></svg>
-    <div id="controls"><input type="number" id="event_index" min="0" max="0" value="0"><button id="event_next">→</button></div>
+    <div id="controls"><input type="number" id="event_index" min="0" value="0"><button id="event_next">→</button></div>
+    <audio id="audio"></audio>
   </body>
 </html>
