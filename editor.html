@@ -127,8 +127,8 @@ function init() {
     jump_to(0);
   }
   
-  function raise_stdout(dumb_stdout) {
-    high_stdout = dumb_stdout.map(e => { return {
+  function raise_events_v1(stdout) {
+    high_stdout = stdout.map(e => { return {
       time_delta : e[0],
       bytes : e[1]
     }});
@@ -138,6 +138,14 @@ function init() {
       e.time_absolute = time_absolute;
     });
     return high_stdout;
+  }
+  
+  function raise_events_v2(events) {
+    high_events = events.map(e => { return {
+      time_absolute : e[0],
+      bytes : e[2]
+    }});
+    return high_events;
   }
   
   dom_audio.addEventListener('timeupdate', e => {
@@ -159,12 +167,32 @@ function init() {
   let prefix = "casts/"+title;
   
   dom_audio.src = prefix+'/audio.mp3'
-  fetch(prefix+'/events.json').then((response) => {
-    return response.json();
+  fetch(prefix+'/events.cast').then((response) => {
+    return response.text();
   }).then((data) => {
-    events = data;
-    events.stdout = collapse_events(raise_stdout(events.stdout));
-    events.stdout = stretch_events(events.stdout, dom_audio.duration);
+    
+    try {
+      events = JSON.parse(data);
+      events.stdout = raise_events_v1(events.stdout);
+      events.stdout = collapse_events(events.stdout);
+      events.stdout = stretch_events(events.stdout, dom_audio.duration);
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        let lines = data.split('\n');
+        events = JSON.parse(lines.shift());
+        events.stdout = JSON.parse("[" + lines.join(",") + "]");
+        if (!Array.isArray(events.stdout[events.stdout.length-1])) {
+          let footer = events.stdout.pop();
+          Object.assign(events,footer);
+        }
+        events.stdout = raise_events_v2(events.stdout);
+        if (!events.duration) {
+          events.duration = events.stdout[events.stdout.length-1].time_absolute;
+        }
+      } else {
+        throw e;
+      }
+    }
     initialize_ui();
   });
 }
