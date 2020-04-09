@@ -15,40 +15,40 @@ function init() {
   let dom_audio = document.getElementById('audio');
   var dom_current_indicator;
   var terminal;
-  var events;
+  var cast;
   
-  function collapse_events(stdout) {
+  function collapse_events(hevents) {
     let out = [];
     let i = 0;
-    out.push(stdout[i]);
+    out.push(hevents[i]);
     i++;
-    while (stdout.length > i) {
-      if (stdout[i].time_delta == 0) {
-        out[out.length-1].bytes += stdout[i].bytes;
+    while (hevents.length > i) {
+      if (hevents[i].time_delta == 0) {
+        out[out.length-1].bytes += hevents[i].bytes;
       } else {
-        out.push(stdout[i]);
+        out.push(hevents[i]);
       }
       i++;
     }
-    if (stdout.length >= out.length) {
-      console.log(`Compressed ${stdout.length} events into ${out.length}.`);
+    if (hevents.length >= out.length) {
+      console.log(`${hevents.length} events collapsed into ${out.length}.`);
     }
     return out;
   }
   
-  function stretch_events(stdout, duration) {
-    let events_duration = stdout[stdout.length-1].time_absolute;
+  function stretch_events(hevents, duration) {
+    let events_duration = hevents[hevents.length-1].time_absolute;
     let total_padding = duration-events_duration;
-    let event_padding = total_padding/stdout.length;
-    stdout.forEach((e, i) => {
+    let event_padding = total_padding/hevents.length;
+    hevents.forEach((e, i) => {
       e.time_absolute += event_padding*(i+1);
     });
-    return stdout;
+    return hevents;
   }
   
   function step_to(event_index) {
     dom_frame_index.value = event_index;
-    terminal.write(events.stdout[event_index].bytes);
+    terminal.write(cast.events[event_index].bytes);
   }
 
   /*
@@ -63,7 +63,7 @@ function init() {
     let current_index = dom_frame_index.valueAsNumber;
     let first_independent_index = event_index;
     while (first_independent_index > 0 
-      && ! RegExp('\\u001b\\]0|\\u001b\\[H').test(events.stdout[first_independent_index].bytes)
+      && ! RegExp('\\u001b\\]0|\\u001b\\[H').test(cast.events[first_independent_index].bytes)
     ) {
       first_independent_index -= 1;
     }
@@ -79,12 +79,12 @@ function init() {
 
   document.getElementById('event_next').addEventListener("click", e => {
     step_to(dom_frame_index.valueAsNumber+1);
-    dom_audio.currentTime = events.stdout[dom_frame_index.valueAsNumber].time_absolute;
+    dom_audio.currentTime = cast.events[dom_frame_index.valueAsNumber].time_absolute;
   }, false);
 
   dom_frame_index.addEventListener('change', e => {
     jump_to(dom_frame_index.valueAsNumber);
-    dom_audio.currentTime = events.stdout[dom_frame_index.valueAsNumber].time_absolute;
+    dom_audio.currentTime = cast.events[dom_frame_index.valueAsNumber].time_absolute;
   }, false);
   
   function add_indicator(time_seconds) {
@@ -100,26 +100,26 @@ function init() {
       if (dom_audio.paused) {
         jump_to(event_index);
       }
-      dom_audio.currentTime = events.stdout[event_index].time_absolute;
+      dom_audio.currentTime = cast.events[event_index].time_absolute;
     }, false);
   }
 
   function initialize_ui() {
-    dom_terminal.style.width = `${events.width+7}ex`; // TODO: detect width properly
+    dom_terminal.style.width = `${cast.width+7}ex`; // TODO: detect width properly
     //dom_terminal.style.height = `${events.height*2.13}ex`;
     
     terminal = new Terminal({
-      rows: events.height,
-      cols: events.width
+      rows: cast.height,
+      cols: cast.width
     });
     terminal.open(dom_terminal);
     
-    dom_timeline.setAttributeNS(null, 'viewBox', `0 0 ${events.duration} 1`);
-    events.stdout.forEach((e, i) => {
+    dom_timeline.setAttributeNS(null, 'viewBox', `0 0 ${cast.duration} 1`);
+    cast.events.forEach((e, i) => {
       add_marker(e.time_absolute, i)
     });
     
-    dom_frame_index.max = events.stdout.length - 1;
+    dom_frame_index.max = cast.events.length - 1;
     
     dom_current_indicator = add_indicator(0);
     dom_current_indicator.style.stroke = "silver";
@@ -128,21 +128,22 @@ function init() {
   }
   
   function raise_events_v1(stdout) {
-    high_stdout = stdout.map(e => { return {
+    high_events = stdout.map(e => { return {
       time_delta : e[0],
       bytes : e[1]
     }});
     let time_absolute = 0;
-    high_stdout.forEach(e => {
+    high_events.forEach(e => {
       time_absolute += e.time_delta;
       e.time_absolute = time_absolute;
     });
-    return high_stdout;
+    return high_events;
   }
   
   function raise_events_v2(events) {
-    high_events = events.map(e => { return {
+    high_events = events.map((e,i) => { return {
       time_absolute : e[0],
+      time_delta : i ? e[0]-events[i-1][0] : 0,
       bytes : e[2]
     }});
     return high_events;
@@ -150,11 +151,11 @@ function init() {
   
   dom_audio.addEventListener('timeupdate', e => {
     dom_current_indicator.setAttributeNS(null, 'd', `M ${dom_audio.currentTime} 0 V 1`);
-    if (events.stdout[dom_frame_index.valueAsNumber].time_absolute > dom_audio.currentTime) {
-      let index = events.stdout.findIndex(e => e.time_absolute < dom_audio.currentTime);
+    if (cast.events[dom_frame_index.valueAsNumber].time_absolute > dom_audio.currentTime) {
+      let index = cast.events.findIndex(e => e.time_absolute < dom_audio.currentTime);
       jump_to(index);
     }
-    while (events.stdout[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
+    while (cast.events[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
       step_to(dom_frame_index.valueAsNumber+1);
     }
   });
@@ -172,22 +173,27 @@ function init() {
   }).then((data) => {
     
     try {
-      events = JSON.parse(data);
-      events.stdout = raise_events_v1(events.stdout);
-      events.stdout = collapse_events(events.stdout);
-      events.stdout = stretch_events(events.stdout, dom_audio.duration);
+      /* try to read as asciicast v1 */
+      cast = JSON.parse(data);
+      cast.events = raise_events_v1(cast.stdout);
+      delete cast.stdout;
+      cast.events = collapse_events(cast.events);
+      cast.events = stretch_events(cast.events, dom_audio.duration);
     } catch (e) {
       if (e instanceof SyntaxError) {
+        /* failed with SyntaxError, assume asciicast v2 */
         let lines = data.split('\n');
-        events = JSON.parse(lines.shift());
-        events.stdout = JSON.parse("[" + lines.join(",") + "]");
-        if (!Array.isArray(events.stdout[events.stdout.length-1])) {
-          let footer = events.stdout.pop();
-          Object.assign(events,footer);
+        cast = JSON.parse(lines.shift());
+        cast.events = JSON.parse("[" + lines.join(",") + "]");
+        /* check for special castty header extension at end of file (used for storing duration) */
+        if (!Array.isArray(cast.events[cast.events.length-1])) {
+          let footer = cast.events.pop();
+          Object.assign(cast,footer);
         }
-        events.stdout = raise_events_v2(events.stdout);
-        if (!events.duration) {
-          events.duration = events.stdout[events.stdout.length-1].time_absolute;
+        cast.events = raise_events_v2(cast.events);
+        cast.events = collapse_events(cast.events);
+        if (!cast.duration) {
+          cast.duration = cast.events[cast.events.length-1].time_absolute;
         }
       } else {
         throw e;
@@ -205,6 +211,7 @@ function init() {
 }
 #timeline path {
   stroke: #000;
+  stroke-width:1px;
 }
 #timeline path:hover {
   stroke: red;
