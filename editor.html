@@ -170,12 +170,15 @@ function init() {
   
   dom_audio.src = prefix+'/audio.mp3'
   fetch(prefix+'/events.cast').then((response) => {
+    if (!response.ok) {
+        throw Error(response.statusText);
+    }
     return response.text();
   }).then((data) => {
-    
     try {
       /* try to read as asciicast v1 */
       cast = JSON.parse(data);
+      console.log("asciicast v1");
       cast.events = raise_events_v1(cast.stdout);
       delete cast.stdout;
       cast.events = stretch_events(cast.events, dom_audio.duration);
@@ -184,7 +187,12 @@ function init() {
         /* failed with SyntaxError, assume asciicast v2 */
         let lines = data.split('\n');
         cast = JSON.parse(lines.shift());
+        if (!lines[lines.length-1]) {
+          /* last line is empty – remove it */
+          lines.pop();
+        }
         cast.events = JSON.parse("[" + lines.join(",") + "]");
+        console.log("asciicast v2");
         /* check for special castty header extension at end of file (used for storing duration) */
         if (!Array.isArray(cast.events[cast.events.length-1])) {
           let footer = cast.events.pop();
@@ -203,7 +211,17 @@ function init() {
       console.log("First event not occurring at absolute timestamp 0. Inserting fake emtpy event.");
       cast.events.unshift({time_absolute:0.0, bytes: ""});
     }
-    initialize_ui();
+    if (dom_audio.duration) {
+      cast.events = stretch_events(cast.events, dom_audio.duration);
+      initialize_ui();
+    } else {
+      console.log("Audio not yet loaded. Deferring UI initialization…");
+      dom_audio.addEventListener("loadeddata", e => {
+        console.log(`Audio loaded. Duration is ${dom_audio.duration}. Initializing UI now.`);
+        cast.events = stretch_events(cast.events, dom_audio.duration);
+        initialize_ui();
+      }, false);
+    }
   });
 }
     </script>
@@ -215,7 +233,6 @@ function init() {
 }
 #timeline path {
   stroke: #000;
-  stroke-width:1px;
 }
 #timeline path:hover {
   stroke: red;
@@ -241,7 +258,7 @@ function init() {
     <div>&nbsp;</div>
     <svg id="timeline" preserveAspectRatio="none"></svg>
     <div id="controls"><label>Current event: <input type="number" id="event_index" min="0" value="0"></label> <button id="event_next">→</button></div>
-    <audio id="audio" controls="controls"></audio>
+    <audio id="audio" controls="true"></audio>
     <div style="text-align: center;">Bitte auf den ▶ Button drücken.</div>
   </body>
 </html>
