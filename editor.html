@@ -36,14 +36,21 @@ function init() {
     return out;
   }
   
-  function stretch_events(hevents, duration) {
-    let events_duration = hevents[hevents.length-1].time_absolute;
+  function stretch_events(cast, duration, global_delay) {
+    if (!global_delay) {
+      global_delay = 0.0;
+    }
+    let events_duration = cast.duration;
+    if (!events_duration) {
+      events_duration = cast.events[cast.events.length-1].time_absolute;
+    }
     let total_padding = duration-events_duration;
-    let event_padding = total_padding/hevents.length;
-    hevents.forEach((e, i) => {
-      e.time_absolute += event_padding*(i+1);
+    let event_padding = total_padding/cast.events.length;
+    cast.events.forEach((e, i) => {
+      e.time_absolute += event_padding*(i+1)+global_delay;
     });
-    return hevents;
+    cast.duration = cast.events[cast.events.length-1].time_absolute;
+    return cast.events;
   }
   
   function step_to(event_index) {
@@ -150,6 +157,14 @@ function init() {
     return high_events;
   }
   
+  function ensure_event_at_zero(events) {
+    if (events[0].time_absolute > 0) {
+      console.log("First event not occurring at absolute timestamp 0. Inserting fake emtpy event.");
+      events.unshift({time_absolute:0.0, bytes: ""});
+    }
+    return events;
+  }
+  
   dom_audio.addEventListener('timeupdate', e => {
     dom_current_indicator.setAttributeNS(null, 'd', `M ${dom_audio.currentTime} 0 V 1`);
     if (cast.events[dom_frame_index.valueAsNumber].time_absolute > dom_audio.currentTime) {
@@ -161,13 +176,13 @@ function init() {
     }
   });
   
-  let title = window.location.hash.substring(1);
+  let title = new URL(window.location.href).searchParams.get("cast");
   if (! title) {
     window.location.replace("index.html");
   }
   document.title = title;
   let prefix = "casts/"+title;
-  
+  let global_delay = +(new URL(window.location.href).searchParams.get("delay"));
   dom_audio.src = prefix+'/audio.mp3'
   fetch(prefix+'/events.cast').then((response) => {
     if (!response.ok) {
@@ -181,7 +196,6 @@ function init() {
       console.log("asciicast v1");
       cast.events = raise_events_v1(cast.stdout);
       delete cast.stdout;
-      cast.events = stretch_events(cast.events, dom_audio.duration);
     } catch (e) {
       if (e instanceof SyntaxError) {
         /* failed with SyntaxError, assume asciicast v2 */
@@ -207,18 +221,16 @@ function init() {
       }
     }
     cast.events = collapse_events(cast.events);
-    if (cast.events[0].time_absolute > 0) {
-      console.log("First event not occurring at absolute timestamp 0. Inserting fake emtpy event.");
-      cast.events.unshift({time_absolute:0.0, bytes: ""});
-    }
     if (dom_audio.duration) {
-      cast.events = stretch_events(cast.events, dom_audio.duration);
+      cast.events = stretch_events(cast, dom_audio.duration, global_delay);
+      cast.events = ensure_event_at_zero(cast.events);
       initialize_ui();
     } else {
       console.log("Audio not yet loaded. Deferring UI initialization…");
       dom_audio.addEventListener("loadeddata", e => {
         console.log(`Audio loaded. Duration is ${dom_audio.duration}. Initializing UI now.`);
-        cast.events = stretch_events(cast.events, dom_audio.duration);
+        cast.events = stretch_events(cast, dom_audio.duration, global_delay);
+        cast.events = ensure_event_at_zero(cast.events);
         initialize_ui();
       }, false);
     }
