@@ -158,9 +158,9 @@ function init() {
   }
   
   function ensure_event_at_zero(events) {
-    if (events[0].time_absolute > 0) {
-      console.log("First event not occurring at absolute timestamp 0. Inserting fake screen clearing(?) event.");
-      events.unshift({time_absolute:0.0, bytes: '\u001b[H\u001b[2J'}); // ggf. noch \u001b(B
+    if (events[0].time_absolute > 0 || !events[0].bytes.includes('\u001b[2J')) {
+      console.log('First event not occurring at absolute timestamp 0 or not clearing the screen. Inserting fake "Clear Display Screen" event.');
+      events.unshift({time_absolute:0.0, bytes: '\u001b[H\u001b[2J'}); // maybe add \u001b(B
     }
     return events;
   }
@@ -171,7 +171,7 @@ function init() {
       let index = cast.events.findIndex(e => e.time_absolute > dom_audio.currentTime) - 1;
       jump_to(index);
     }
-    while (cast.events[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
+    while (cast.events[dom_frame_index.valueAsNumber+1] && cast.events[dom_frame_index.valueAsNumber+1].time_absolute < dom_audio.currentTime) {
       step_to(dom_frame_index.valueAsNumber+1);
     }
   });
@@ -208,17 +208,15 @@ function init() {
         cast.events = JSON.parse("[" + lines.join(",") + "]");
         console.log("asciicast v2");
         cast.events = raise_events_v2(cast.events);
-        if (!cast.duration) {
-          console.log("Assuming duration based on last event.");
-          cast.duration = cast.events[cast.events.length-1].time_absolute;
-        }
       } else {
         throw e;
       }
     }
     cast.events = collapse_events(cast.events);
     if (dom_audio.duration) {
-      cast.events = stretch_events(cast, dom_audio.duration, global_delay);
+      if (!cast.duration) {
+        cast.events = stretch_events(cast, dom_audio.duration, global_delay);
+      }
       cast.events = ensure_event_at_zero(cast.events);
       initialize_ui();
     } else {
