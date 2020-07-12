@@ -50,6 +50,7 @@ function init() {
       e.time_absolute += event_padding*(i+1)+global_delay;
     });
     cast.duration = cast.events[cast.events.length-1].time_absolute;
+    console.log(`Events stretched from ${events_duration} to ${cast.duration}.`);
     return cast.events;
   }
   
@@ -66,11 +67,13 @@ function init() {
   */
   // "\u001b[H" move to home
   // "\u001b]0" could be a reset
+  // "\u001b[2J" is "Clear Display Screen"
   function jump_to(event_index) {
     let current_index = dom_frame_index.valueAsNumber;
     let first_independent_index = event_index;
     while (first_independent_index > 0 
       && ! cast.events[first_independent_index].bytes.includes('\u001b[H')
+      && ! cast.events[first_independent_index].bytes.includes('\u001b[2J')
     ) {
       first_independent_index -= 1;
     }
@@ -204,13 +207,9 @@ function init() {
         }
         cast.events = JSON.parse("[" + lines.join(",") + "]");
         console.log("asciicast v2");
-        /* check for special castty header extension at end of file (used for storing duration) */
-        if (!Array.isArray(cast.events[cast.events.length-1])) {
-          let footer = cast.events.pop();
-          Object.assign(cast,footer);
-        }
         cast.events = raise_events_v2(cast.events);
         if (!cast.duration) {
+          console.log("Assuming duration based on last event.");
           cast.duration = cast.events[cast.events.length-1].time_absolute;
         }
       } else {
